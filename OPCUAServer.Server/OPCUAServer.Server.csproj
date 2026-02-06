@@ -1,0 +1,24 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.2" />
+    <PackageReference Include="OPCFoundation.NetStandard.Opc.Ua" Version="1.5.378.106" />
+    <PackageReference Include="OPCFoundation.NetStandard.Opc.Ua.Configuration" Version="1.5.378.106" />
+    <PackageReference Include="OPCFoundation.NetStandard.Opc.Ua.Server" Version="1.5.378.106" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\OPCUAServer.Application\OPCUAServer.Application.csproj" />
+    <ProjectReference Include="..\OPCUAServer.Domain\OPCUAServer.Domain.csproj" />
+    <ProjectReference Include="..\OPCUAServer.Infrastructure\OPCUAServer.Infrastructure.csproj" />
+  </ItemGroup>
+
+</Project>
