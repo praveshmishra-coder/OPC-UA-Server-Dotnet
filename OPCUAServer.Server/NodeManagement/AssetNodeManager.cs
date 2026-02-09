@@ -10,7 +10,11 @@ namespace OPCUAServer.Server.NodeManagement
     {
         private readonly AssetService _assetService;
         private readonly ILogger<AssetNodeManager> _logger;
-        private FolderState? _assetsFolder;
+        private FolderState _assetsFolder;  // ⚠️ Warning fix: removed '?'
+
+        // 👇 NEW: Signal nodes को track करने के लिए
+        private readonly Dictionary<string, BaseDataVariableState> _signalNodes = new();
+        private Timer? _updateTimer;
 
         public AssetNodeManager(
             IServerInternal server,
@@ -21,7 +25,6 @@ namespace OPCUAServer.Server.NodeManagement
         {
             _assetService = assetService;
             _logger = logger;
-
             SystemContext.NodeIdFactory = this;
         }
 
@@ -65,6 +68,9 @@ namespace OPCUAServer.Server.NodeManagement
                 }
 
                 _logger.LogInformation("OPC UA Address Space Created Successfully");
+
+                // 👇 NEW: Start update timer for pub-sub functionality
+                StartValueUpdateTimer();
             }
         }
 
@@ -78,7 +84,7 @@ namespace OPCUAServer.Server.NodeManagement
                 TypeDefinitionId = ObjectTypeIds.FolderType
             };
 
-            _assetsFolder?.AddChild(assetFolder);
+            _assetsFolder.AddChild(assetFolder);
             AddPredefinedNode(SystemContext, assetFolder);
 
             foreach (var signal in asset.Signals)
@@ -103,7 +109,7 @@ namespace OPCUAServer.Server.NodeManagement
                 BrowseName = new QualifiedName(signal.Name, NamespaceIndex),
                 DisplayName = new LocalizedText(signal.Name),
                 TypeDefinitionId = VariableTypeIds.BaseDataVariableType,
-                DataType = MapToOpcDataType(signal.DataType),
+                DataType = MapToOpcDataType(signal.DataType),  // ✅ यह method नीचे define है
                 ValueRank = ValueRanks.Scalar,
                 AccessLevel = AccessLevels.CurrentReadOrWrite,
                 UserAccessLevel = AccessLevels.CurrentReadOrWrite,
@@ -116,12 +122,17 @@ namespace OPCUAServer.Server.NodeManagement
             parent.AddChild(variable);
             AddPredefinedNode(SystemContext, variable);
 
+            // 👇 NEW: Store reference for updates
+            string key = $"{assetName}.{signal.Name}";
+            _signalNodes[key] = variable;
+
             _logger.LogDebug(
                 "Signal Node Created: {Asset}.{Signal}",
                 assetName,
                 signal.Name);
         }
 
+        // ✅ यह method missing था
         private NodeId MapToOpcDataType(SignalDataType dataType)
         {
             return dataType switch
@@ -132,6 +143,54 @@ namespace OPCUAServer.Server.NodeManagement
                 SignalDataType.Boolean => DataTypeIds.Boolean,
                 _ => DataTypeIds.BaseDataType
             };
+        }
+
+        // 👇 NEW: Pub-Sub implementation - periodically update OPC UA nodes
+        private void StartValueUpdateTimer()
+        {
+            _updateTimer = new Timer(UpdateNodeValues, null, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(1));
+            _logger.LogInformation("Started node value update timer (1 second interval)");
+        }
+
+        private void UpdateNodeValues(object? state)
+        {
+            lock (Lock)
+            {
+                try
+                {
+                    var assets = _assetService.GetAllAssets();
+
+                    foreach (var asset in assets)
+                    {
+                        foreach (var signal in asset.Signals)
+                        {
+                            string key = $"{asset.Name}.{signal.Name}";
+
+                            if (_signalNodes.TryGetValue(key, out var variable))
+                            {
+                                // Update OPC UA node with current signal value
+                                variable.Value = signal.Value;
+                                variable.Timestamp = DateTime.UtcNow;
+                                variable.StatusCode = StatusCodes.Good;
+                                variable.ClearChangeMasks(SystemContext, false);
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Error updating node values");
+                }
+            }
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing)
+            {
+                _updateTimer?.Dispose();
+            }
+            base.Dispose(disposing);
         }
     }
 }

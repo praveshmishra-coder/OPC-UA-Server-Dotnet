@@ -7,6 +7,7 @@ using OPCUAServer.Application.Services;
 using OPCUAServer.Infrastructure.Providers;
 using OPCUAServer.Server.Hosting;
 using OPCUAServer.Server.Server;
+using OPCUAServer.Server.Services;
 
 namespace OPCUAServer.Presentation;
 
@@ -39,6 +40,8 @@ class Program
                 // OPC UA Server Layer
                 // ============================
                 services.AddSingleton<OpcUaServerWrapper>();
+
+                services.AddHostedService<SignalUpdateService>();
 
                 // ============================
                 // Hosted Lifecycle Service
